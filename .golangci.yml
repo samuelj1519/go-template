@@ -1,0 +1,41 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - errcheck
+    - ineffassign
+    - depguard
+    - cyclop
+    - dupl
+    - misspell
+    - nolintlint
+  settings:
+    depguard:
+      rules:
+        domain:
+          files:
+            - "**/internal/text/*.go"
+            - "!$test"
+          list-mode: strict
+          allow:
+            - errors
+            - strings
+    cyclop:
+      max-complexity: 10
+    dupl:
+      threshold: 100
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    presets: []
+    paths:
+      - ^template/
+formatters:
+  enable:
+    - gofmt
