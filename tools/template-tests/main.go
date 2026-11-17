@@ -36,6 +36,14 @@ func main() {
 }
 
 func files(root string) (map[string][]byte, error) {
+	return walkFiles(root, nil)
+}
+
+func templateFiles(root string) (map[string][]byte, error) {
+	return walkFiles(root, excludedTemplatePath)
+}
+
+func walkFiles(root string, excluded func(string, fs.DirEntry) (bool, error)) (map[string][]byte, error) {
 	result := make(map[string][]byte)
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -44,6 +52,12 @@ func files(root string) (map[string][]byte, error) {
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
+		}
+		rel = filepath.ToSlash(rel)
+		if excluded != nil {
+			if skip, err := excluded(rel, entry); skip {
+				return err
+			}
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
 			return fmt.Errorf("template symlink rejected: %s", rel)
@@ -58,14 +72,37 @@ func files(root string) (map[string][]byte, error) {
 		if err != nil {
 			return err
 		}
-		result[filepath.ToSlash(rel)] = data
+		result[rel] = data
 		return nil
 	})
 	return result, err
 }
 
+func excludedTemplatePath(rel string, entry fs.DirEntry) (bool, error) {
+	switch rel {
+	case ".git", ".handoff":
+		if entry.IsDir() {
+			return true, filepath.SkipDir
+		}
+		return true, nil
+	case "artifacts", "bin", ".worktrees":
+		if entry.IsDir() {
+			return true, filepath.SkipDir
+		}
+		return true, fmt.Errorf("expected a directory at excluded template path: %s", rel)
+	}
+	name := filepath.Base(filepath.FromSlash(rel))
+	if name == ".env" || strings.HasPrefix(name, ".env.") || strings.HasSuffix(name, ".test") {
+		if entry.IsDir() {
+			return true, filepath.SkipDir
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 func pack(input, proxy string) error {
-	inputs, err := files(input)
+	inputs, err := templateFiles(input)
 	if err != nil {
 		return err
 	}
@@ -139,7 +176,7 @@ func moduleArchive(inputs map[string][]byte, names []string, version string) ([]
 }
 
 func bootstrap(root string) error {
-	inputs, err := files(filepath.Join(root, "template"))
+	inputs, err := templateFiles(filepath.Join(root, "template"))
 	if err != nil {
 		return err
 	}

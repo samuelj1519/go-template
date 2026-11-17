@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -126,6 +127,84 @@ func TestPackReproducible(t *testing.T) {
 			t.Fatalf("nondeterministic proxy %s", name)
 		}
 	}
+}
+
+func TestPackExcludesNonSourceInputs(t *testing.T) {
+	root := t.TempDir()
+	inputs := map[string]string{
+		"go.mod":                    "module " + module + "\n",
+		"nested/artifacts/keep.txt": "ordinary nested source fixture",
+		".env":                      "FAKE_TOKEN=synthetic",
+		".env.local":                "FAKE_TOKEN=synthetic",
+		"nested/.env":               "FAKE_TOKEN=synthetic",
+		"artifacts/coverage.out":    "synthetic runtime output",
+		"bin/app":                   "synthetic binary",
+		".worktrees/review/go.mod":  "synthetic worktree",
+		"cpu.test":                  "synthetic test binary",
+		"nested/cpu.test":           "synthetic test binary",
+		".git/config":               "synthetic repository metadata",
+		".handoff":                  "synthetic maintainer state",
+	}
+	writeFiles(t, root, inputs)
+	proxy := filepath.Join(t.TempDir(), "proxy")
+	if err := pack(root, proxy); err != nil {
+		t.Fatal(err)
+	}
+	got := packedFiles(t, proxy)
+	for name := range inputs {
+		if name != "go.mod" && name != "nested/artifacts/keep.txt" && got[name] {
+			t.Errorf("packed non-source input %s", name)
+		}
+	}
+	for _, name := range []string{"go.mod", "nested/artifacts/keep.txt"} {
+		if !got[name] {
+			t.Errorf("omitted source input %s", name)
+		}
+	}
+	if len(got) != 2 {
+		t.Errorf("archive contains %d files, want 2", len(got))
+	}
+}
+
+func writeFiles(t *testing.T, root string, inputs map[string]string) {
+	t.Helper()
+	for name, data := range inputs {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func packedFiles(t *testing.T, proxy string) map[string]bool {
+	t.Helper()
+	outputs, err := files(proxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var archiveData []byte
+	for name, data := range outputs {
+		if strings.HasSuffix(name, ".zip") {
+			archiveData = data
+		}
+	}
+	archive, err := zip.NewReader(bytes.NewReader(archiveData), int64(len(archiveData)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := make(map[string]bool)
+	for _, entry := range archive.File {
+		remainder := strings.TrimPrefix(entry.Name, module+"@")
+		_, name, ok := strings.Cut(remainder, "/")
+		if !ok {
+			t.Fatalf("invalid archive entry %q", entry.Name)
+		}
+		result[name] = true
+	}
+	return result
 }
 
 func TestTemplateLinksRejected(t *testing.T) {
@@ -258,7 +337,10 @@ func assertGeneratedFiles(t *testing.T, root, name, a, b string) {
 	t.Helper()
 	aFiles := readFiles(t, a)
 	bFiles := readFiles(t, b)
-	inputs := readFiles(t, filepath.Join(root, "template"))
+	inputs, err := templateFiles(filepath.Join(root, "template"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(aFiles) != len(inputs) || len(bFiles) != len(inputs) {
 		t.Fatalf("export file counts differ: input %d, a %d, b %d", len(inputs), len(aFiles), len(bFiles))
 	}
@@ -383,7 +465,7 @@ func TestBehaviorMutations(t *testing.T) {
 
 func copyTemplate(t *testing.T, root, source string) {
 	t.Helper()
-	inputs, err := files(filepath.Join(root, "template"))
+	inputs, err := templateFiles(filepath.Join(root, "template"))
 	if err != nil {
 		t.Fatal(err)
 	}
