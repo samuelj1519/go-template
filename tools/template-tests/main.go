@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -176,14 +177,56 @@ func moduleArchive(inputs map[string][]byte, names []string, version string) ([]
 }
 
 func bootstrap(root string) error {
-	inputs, err := templateFiles(filepath.Join(root, "template"))
+	names, err := gitFiles(root)
+	if err != nil {
+		return err
+	}
+	inputs, err := listedTemplateFiles(root, names)
 	if err != nil {
 		return err
 	}
 	if err := compareBootstrap(root, inputs); err != nil {
 		return err
 	}
-	return checkRootOwnership(root, inputs)
+	return checkRootOwnership(inputs, names)
+}
+
+func gitFiles(root string) ([]string, error) {
+	cmd := exec.Command("git", "-C", root, "ls-files", "-c", "-o", "--exclude-standard", "-z")
+	data, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("list repository files: %w: %s", err, data)
+	}
+	var names []string
+	for _, name := range bytes.Split(data, []byte{0}) {
+		if len(name) != 0 {
+			names = append(names, string(name))
+		}
+	}
+	return names, nil
+}
+
+func listedTemplateFiles(root string, names []string) (map[string][]byte, error) {
+	inputs := make(map[string][]byte)
+	for _, name := range names {
+		if !strings.HasPrefix(name, "template/") {
+			continue
+		}
+		path := filepath.Join(root, filepath.FromSlash(name))
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, err
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("template input is not a regular file: %s", name)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		inputs[strings.TrimPrefix(name, "template/")] = data
+	}
+	return inputs, nil
 }
 
 func compareBootstrap(root string, inputs map[string][]byte) error {
@@ -197,9 +240,12 @@ func compareBootstrap(root string, inputs map[string][]byte) error {
 		if err != nil || !bytes.Equal(got, want) {
 			return fmt.Errorf("bootstrap drift in %s (edit template first and copy to root)", name)
 		}
-		actual, err := os.Stat(path)
+		actual, err := os.Lstat(path)
 		if err != nil {
 			return err
+		}
+		if !actual.Mode().IsRegular() {
+			return fmt.Errorf("root input is not a regular file: %s", name)
 		}
 		expected, err := os.Stat(filepath.Join(root, "template", filepath.FromSlash(name)))
 		if err != nil {
@@ -240,49 +286,29 @@ func bootstrapFile(name string, data []byte) ([]byte, error) {
 	return data, nil
 }
 
-func checkRootOwnership(root string, inputs map[string][]byte) error {
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if excluded, err := excludedRootPath(rel, entry); excluded {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
+func checkRootOwnership(inputs map[string][]byte, names []string) error {
+	for _, rel := range names {
+		if excludedRootPath(rel) {
+			continue
 		}
 		switch rel {
 		case "CONTRIBUTING.md", ".github/workflows/template.yml":
-			return nil
+			continue
 		}
 		if _, ok := inputs[rel]; !ok {
 			return fmt.Errorf("unowned root file: %s", rel)
 		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("root link rejected: %s", rel)
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
-func excludedRootPath(rel string, entry fs.DirEntry) (bool, error) {
-	switch rel {
-	case ".git", "artifacts", "template", "tools/template-tests", ".worktrees":
-		if entry.IsDir() {
-			return true, filepath.SkipDir
+func excludedRootPath(rel string) bool {
+	for _, path := range []string{"artifacts", "template", "tools/template-tests", ".worktrees"} {
+		if rel == path || strings.HasPrefix(rel, path+"/") {
+			return true
 		}
-		if rel == ".git" && entry.Type().IsRegular() {
-			return true, nil
-		}
-		return true, fmt.Errorf("expected a directory at excluded runtime path: %s", rel)
-	default:
-		return false, nil
 	}
+	return false
 }
 
 func proxyURL(path string) string {

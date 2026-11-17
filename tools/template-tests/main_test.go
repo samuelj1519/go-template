@@ -42,6 +42,13 @@ func repository(t *testing.T) string {
 	return root
 }
 
+func initRepository(t *testing.T, root string) {
+	t.Helper()
+	if _, err := command(t, root, os.Environ(), "git", "init", "--quiet"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBootstrap(t *testing.T) {
 	if err := bootstrap(repository(t)); err != nil {
 		t.Fatal(err)
@@ -50,15 +57,15 @@ func TestBootstrap(t *testing.T) {
 
 func TestReverseBootstrap(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "template"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "template", "go.mod"), []byte("module example.com/app\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeFiles(t, root, map[string]string{
+		"go.mod":                      "module example.com/app\n",
+		"template/go.mod":             "module example.com/app\n",
+		".gitignore":                  ".claude/\n.cursor/\n",
+		"template/.gitignore":         ".claude/\n.cursor/\n",
+		".claude/settings.local.json": "synthetic ignored settings",
+		".cursor/settings.json":       "synthetic ignored settings",
+	})
+	initRepository(t, root)
 	if err := bootstrap(root); err != nil {
 		t.Fatal(err)
 	}
@@ -80,18 +87,19 @@ func TestReverseBootstrap(t *testing.T) {
 }
 
 func TestWorktreeBootstrap(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "template"), 0o755); err != nil {
+	seed := t.TempDir()
+	initRepository(t, seed)
+	if _, err := command(t, seed, os.Environ(), "git", "-c", "user.name=Synthetic", "-c", "user.email=synthetic@example.invalid", "commit", "--allow-empty", "-m", "synthetic base"); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"go.mod", "template/go.mod"} {
-		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(path)), []byte("module example.com/app\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: /synthetic/worktree\n"), 0o644); err != nil {
+	root := filepath.Join(t.TempDir(), "worktree")
+	if _, err := command(t, seed, os.Environ(), "git", "worktree", "add", "--detach", root); err != nil {
 		t.Fatal(err)
 	}
+	writeFiles(t, root, map[string]string{
+		"go.mod":          "module example.com/app\n",
+		"template/go.mod": "module example.com/app\n",
+	})
 	if err := bootstrap(root); err != nil {
 		t.Fatal(err)
 	}
