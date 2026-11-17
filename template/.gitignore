@@ -2,4 +2,8 @@
 /bin/
 /.worktrees/
 .env
+.env.*
+.handoff
+.claude/
+.cursor/
 *.test

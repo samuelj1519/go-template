@@ -37,14 +37,6 @@ func main() {
 }
 
 func files(root string) (map[string][]byte, error) {
-	return walkFiles(root, nil)
-}
-
-func templateFiles(root string) (map[string][]byte, error) {
-	return walkFiles(root, excludedTemplatePath)
-}
-
-func walkFiles(root string, excluded func(string, fs.DirEntry) (bool, error)) (map[string][]byte, error) {
 	result := make(map[string][]byte)
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -53,12 +45,6 @@ func walkFiles(root string, excluded func(string, fs.DirEntry) (bool, error)) (m
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if excluded != nil {
-			if skip, err := excluded(rel, entry); skip {
-				return err
-			}
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
 			return fmt.Errorf("template symlink rejected: %s", rel)
@@ -73,33 +59,18 @@ func walkFiles(root string, excluded func(string, fs.DirEntry) (bool, error)) (m
 		if err != nil {
 			return err
 		}
-		result[rel] = data
+		result[filepath.ToSlash(rel)] = data
 		return nil
 	})
 	return result, err
 }
 
-func excludedTemplatePath(rel string, entry fs.DirEntry) (bool, error) {
-	switch rel {
-	case ".git", ".handoff", ".claude", ".cursor":
-		if entry.IsDir() {
-			return true, filepath.SkipDir
-		}
-		return true, nil
-	case "artifacts", "bin", ".worktrees":
-		if entry.IsDir() {
-			return true, filepath.SkipDir
-		}
-		return true, fmt.Errorf("expected a directory at excluded template path: %s", rel)
+func templateFiles(root string) (map[string][]byte, error) {
+	names, err := gitFiles(root)
+	if err != nil {
+		return nil, err
 	}
-	name := filepath.Base(filepath.FromSlash(rel))
-	if name == ".env" || strings.HasPrefix(name, ".env.") || strings.HasSuffix(name, ".test") {
-		if entry.IsDir() {
-			return true, filepath.SkipDir
-		}
-		return true, nil
-	}
-	return false, nil
+	return listedFiles(root, names, "")
 }
 
 func pack(input, proxy string) error {
@@ -181,7 +152,7 @@ func bootstrap(root string) error {
 	if err != nil {
 		return err
 	}
-	inputs, err := listedTemplateFiles(root, names)
+	inputs, err := listedFiles(root, names, "template/")
 	if err != nil {
 		return err
 	}
@@ -206,10 +177,10 @@ func gitFiles(root string) ([]string, error) {
 	return names, nil
 }
 
-func listedTemplateFiles(root string, names []string) (map[string][]byte, error) {
+func listedFiles(root string, names []string, prefix string) (map[string][]byte, error) {
 	inputs := make(map[string][]byte)
 	for _, name := range names {
-		if !strings.HasPrefix(name, "template/") {
+		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
 		path := filepath.Join(root, filepath.FromSlash(name))
@@ -224,7 +195,7 @@ func listedTemplateFiles(root string, names []string) (map[string][]byte, error)
 		if err != nil {
 			return nil, err
 		}
-		inputs[strings.TrimPrefix(name, "template/")] = data
+		inputs[strings.TrimPrefix(name, prefix)] = data
 	}
 	return inputs, nil
 }

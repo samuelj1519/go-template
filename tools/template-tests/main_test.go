@@ -140,6 +140,7 @@ func TestPackReproducible(t *testing.T) {
 func TestPackExcludesNonSourceInputs(t *testing.T) {
 	root := t.TempDir()
 	inputs := map[string]string{
+		".gitignore":                  ".env\n.env.*\n.handoff\n.claude/\n.cursor/\n/artifacts/\n/bin/\n/.worktrees/\n*.test\n",
 		"go.mod":                      "module " + module + "\n",
 		"nested/artifacts/keep.txt":   "ordinary nested source fixture",
 		".env":                        "FAKE_TOKEN=synthetic",
@@ -150,29 +151,35 @@ func TestPackExcludesNonSourceInputs(t *testing.T) {
 		".worktrees/review/go.mod":    "synthetic worktree",
 		"cpu.test":                    "synthetic test binary",
 		"nested/cpu.test":             "synthetic test binary",
-		".git/config":                 "synthetic repository metadata",
 		".handoff":                    "synthetic maintainer state",
 		".claude/settings.local.json": "synthetic ignored agent settings",
 		".cursor/settings.json":       "synthetic ignored agent settings",
+		".idea/workspace.xml":         "synthetic locally excluded settings",
 	}
 	writeFiles(t, root, inputs)
+	initRepository(t, root)
+	writeFiles(t, root, map[string]string{".git/info/exclude": ".idea/\n"})
 	proxy := filepath.Join(t.TempDir(), "proxy")
 	if err := pack(root, proxy); err != nil {
 		t.Fatal(err)
 	}
 	got := packedFiles(t, proxy)
+	sources := map[string]bool{".gitignore": true, "go.mod": true, "nested/artifacts/keep.txt": true}
 	for name := range inputs {
-		if name != "go.mod" && name != "nested/artifacts/keep.txt" && got[name] {
+		if !sources[name] && got[name] {
 			t.Errorf("packed non-source input %s", name)
 		}
 	}
-	for _, name := range []string{"go.mod", "nested/artifacts/keep.txt"} {
+	if got[".git/config"] {
+		t.Error("packed repository metadata")
+	}
+	for name := range sources {
 		if !got[name] {
 			t.Errorf("omitted source input %s", name)
 		}
 	}
-	if len(got) != 2 {
-		t.Errorf("archive contains %d files, want 2", len(got))
+	if len(got) != len(sources) {
+		t.Errorf("archive contains %d files, want %d", len(got), len(sources))
 	}
 }
 
@@ -360,6 +367,7 @@ func TestGeneratedFilesPreserveNonImportModuleText(t *testing.T) {
 		"b/go.mod":            "module " + name + "\n",
 		"b/example.go":        generated,
 	})
+	initRepository(t, root)
 	assertGeneratedFiles(t, root, name, filepath.Join(root, "a"), filepath.Join(root, "b"))
 }
 
