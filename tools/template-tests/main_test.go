@@ -237,6 +237,36 @@ func TestTemplateLinksRejected(t *testing.T) {
 	}
 }
 
+func TestPackRejectsUntrackedSymlink(t *testing.T) {
+	root := t.TempDir()
+	initRepository(t, root)
+	writeFiles(t, root, map[string]string{
+		"go.mod": "module " + module + "\n",
+	})
+	if err := pack(root, filepath.Join(t.TempDir(), "proxy")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("go.mod", filepath.Join(root, "synthetic-link")); err != nil {
+		t.Skip("cannot create symlink: " + err.Error())
+	}
+	names, err := gitFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := false
+	for _, name := range names {
+		if name == "synthetic-link" {
+			listed = true
+		}
+	}
+	if !listed {
+		t.Fatalf("untracked symlink absent from Git listing: %q", names)
+	}
+	if err := pack(root, filepath.Join(t.TempDir(), "proxy")); err == nil {
+		t.Fatal("accepted untracked symlink")
+	}
+}
+
 func command(t *testing.T, dir string, env []string, name string, args ...string) ([]byte, error) {
 	t.Helper()
 	cmd := exec.Command(name, args...)
