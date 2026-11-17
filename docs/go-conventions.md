@@ -20,7 +20,7 @@ An application is `cmd` and `internal`. `main` may print a diagnostic and exit. 
 - Pass `context.Context` as the first parameter. `*testing.T` may come before it (`revive` `context-as-argument`). Do not store a context in a struct (`containedctx`). Do not replace a parent context with `context.Background` or `context.TODO` (`contextcheck`). Do not use a built-in type as a context key (`staticcheck` SA1029).
 - Use the comma-ok form of a type assertion (`forcetypeassert`).
 - Do not add an `init` function (`gochecknoinits`).
-- Do not add a package-level variable (`gochecknoglobals`). The checker allows an `Err`/`err` sentinel and `regexp.MustCompile`. Do not reassign another package's `Err*` or `EOF` (`reassign`). Reassignment of a sentinel inside its own package is not checked.
+- Do not add a package-level variable (`gochecknoglobals`). The checker allows an `Err`/`err` sentinel, `regexp.MustCompile`, a blank `_` declaration (such as an interface assertion), and a variable named `version`. Do not reassign another package's `Err*` or `EOF` (`reassign`). Reassignment of a sentinel inside its own package is not checked.
 - Use one short receiver name for a type, not `this` or `self` (`revive` `receiver-naming`). Do not mix pointer and value receivers (`recvcheck`).
 - Document every exported name in an importable package (`revive` `exported`). Give every package a package comment (`revive` `package-comments`). `package main` may start with `Command`.
 - Do not put a unit suffix on a `time.Duration` name (`revive` `time-naming`).
