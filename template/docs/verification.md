@@ -1,6 +1,6 @@
 # Verification
 
-Run checks from the module root. `prepare` downloads and builds pinned tools explicitly; later commands use the Go cache. Quick checks include gofmt, vet, strict golangci-lint, and all module tests. The linter checks unused code, errors, spelling, justified exemptions, dependencies, duplication (100 tokens), and cyclomatic complexity (10).
+Run checks from the module root. `prepare` downloads and builds pinned tools explicitly; later commands use the Go cache. Quick checks include gofmt, vet, strict golangci-lint, and all module tests. The linter checks unused code, errors, spelling, justified exemptions, dependencies, duplication (100 tokens), and cyclomatic complexity (10). Checker names and the practices they do not cover are in [Go conventions](go-conventions.md).
 
 Full checks require race tests, a nonempty atomic coverage profile for every production file under internal/, and 100% covered statements. The initial example establishes this baseline; keep the threshold and file completeness check when extending it. The CLI is tested through its compiled executable, including stdout, stderr, and failure exit code. Verification tools have their own behavioral tests and do not inflate application coverage.
 

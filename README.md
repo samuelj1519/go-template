@@ -14,7 +14,7 @@ go run ./tools/check milestone
 The CLI prints `hello world`. Empty input or a failed stdout write prints a diagnostic to stderr and exits 1.
 `quick` checks formatting, vet, lint, and tests. `full` adds race detection, scoped coverage, a real executable smoke test, module integrity, dependency policy, and vulnerability scanning. `milestone` also runs mutation testing and bounded fuzzing. Commands fail when a required tool or measurement fails.
 
-`cmd/app` owns command-line I/O; `internal/text` owns pure rules; `tools/check` owns verification. See [architecture](docs/architecture.md) and [verification](docs/verification.md).
+`cmd/app` owns command-line I/O; `internal/text` owns pure rules; `tools/check` owns verification. See [architecture](docs/architecture.md), [verification](docs/verification.md), and [Go conventions](docs/go-conventions.md).
 
 Prepare tools explicitly with `go run ./tools/check prepare`. On POSIX systems, enable optional commit checks:
 

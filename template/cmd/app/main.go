@@ -1,3 +1,4 @@
+// Command app prints one normalized line from its arguments.
 package main
 
 import (

@@ -333,7 +333,7 @@ func smokeWriteFailure(binary, dir string) (result error) {
 	err = cmd.Run()
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 1 || stderr.Len() == 0 {
-		return fmt.Errorf("CLI output failure must report an error and exit 1: stderr=%q error=%v", &stderr, err)
+		return fmt.Errorf("CLI output failure must report an error and exit 1: stderr=%q error=%s", &stderr, fmt.Sprint(err))
 	}
 	return nil
 }

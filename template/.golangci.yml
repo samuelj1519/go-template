@@ -14,6 +14,18 @@ linters:
     - dupl
     - misspell
     - nolintlint
+    - errorlint
+    - errname
+    - contextcheck
+    - containedctx
+    - forcetypeassert
+    - gochecknoinits
+    - gochecknoglobals
+    - thelper
+    - reassign
+    - recvcheck
+    - ireturn
+    - revive
   settings:
     depguard:
       rules:
@@ -32,6 +44,20 @@ linters:
     nolintlint:
       require-explanation: true
       require-specific: true
+    ireturn:
+      allow:
+        - anon
+        - error
+        - stdlib
+    revive:
+      rules:
+        - name: context-as-argument
+          arguments:
+            - allowTypesBefore: "*testing.T"
+        - name: receiver-naming
+        - name: exported
+        - name: package-comments
+        - name: time-naming
   exclusions:
     presets: []
     paths:
