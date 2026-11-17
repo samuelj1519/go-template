@@ -140,18 +140,20 @@ func TestPackReproducible(t *testing.T) {
 func TestPackExcludesNonSourceInputs(t *testing.T) {
 	root := t.TempDir()
 	inputs := map[string]string{
-		"go.mod":                    "module " + module + "\n",
-		"nested/artifacts/keep.txt": "ordinary nested source fixture",
-		".env":                      "FAKE_TOKEN=synthetic",
-		".env.local":                "FAKE_TOKEN=synthetic",
-		"nested/.env":               "FAKE_TOKEN=synthetic",
-		"artifacts/coverage.out":    "synthetic runtime output",
-		"bin/app":                   "synthetic binary",
-		".worktrees/review/go.mod":  "synthetic worktree",
-		"cpu.test":                  "synthetic test binary",
-		"nested/cpu.test":           "synthetic test binary",
-		".git/config":               "synthetic repository metadata",
-		".handoff":                  "synthetic maintainer state",
+		"go.mod":                      "module " + module + "\n",
+		"nested/artifacts/keep.txt":   "ordinary nested source fixture",
+		".env":                        "FAKE_TOKEN=synthetic",
+		".env.local":                  "FAKE_TOKEN=synthetic",
+		"nested/.env":                 "FAKE_TOKEN=synthetic",
+		"artifacts/coverage.out":      "synthetic runtime output",
+		"bin/app":                     "synthetic binary",
+		".worktrees/review/go.mod":    "synthetic worktree",
+		"cpu.test":                    "synthetic test binary",
+		"nested/cpu.test":             "synthetic test binary",
+		".git/config":                 "synthetic repository metadata",
+		".handoff":                    "synthetic maintainer state",
+		".claude/settings.local.json": "synthetic ignored agent settings",
+		".cursor/settings.json":       "synthetic ignored agent settings",
 	}
 	writeFiles(t, root, inputs)
 	proxy := filepath.Join(t.TempDir(), "proxy")

@@ -81,7 +81,7 @@ func walkFiles(root string, excluded func(string, fs.DirEntry) (bool, error)) (m
 
 func excludedTemplatePath(rel string, entry fs.DirEntry) (bool, error) {
 	switch rel {
-	case ".git", ".handoff":
+	case ".git", ".handoff", ".claude", ".cursor":
 		if entry.IsDir() {
 			return true, filepath.SkipDir
 		}
