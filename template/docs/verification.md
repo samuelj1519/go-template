@@ -6,7 +6,7 @@ Full checks require race tests, a nonempty atomic coverage profile for every pro
 
 Full checks verify Go module hashes, require the reviewed dependency graph (initially only this module), and run govulncheck against current Go vulnerability data. A new dependency requires explicit source and license review before changing that policy. The MIT notice covers scaffold code; the Go distribution and development tools retain their own licenses.
 
-Milestones run full checks, five seconds of fuzzing, and Gremlins with 100% efficacy and mutant-coverage thresholds. Review the number of tested mutants: an empty report is a failure. A killed mutant must be compilable; invalid mutations are not proof. Fuzzing and mutation runs use disposable independent source/build directories.
+Milestones run full checks, five seconds of fuzzing, and Gremlins with 100% efficacy and mutant-coverage thresholds. The fuzz step runs `FuzzNormalize` as the fixed smoke target for this example. Add a new fuzz target to the `tools/check` milestone in the same change. Review the number of tested mutants: an empty report is a failure. A killed mutant must be compilable; invalid mutations are not proof. Fuzzing and mutation runs use disposable independent source/build directories.
 
 Review these four architecture health rules at milestones: pure-core imports, command-to-core dependency direction, Go's internal-package encapsulation, and separation of application and verification coverage. Check document links, exceptions, dependency inventory, duplication, complexity, test strength, rework, review findings, regressions, and duplicate-code growth. Record unknown metrics as unknown.
 
