@@ -259,8 +259,12 @@ func compareBootstrap(root string, inputs map[string][]byte) error {
 }
 
 func bootstrapFile(name string, data []byte) ([]byte, error) {
+	return rewriteModule(name, data, module, rootModule)
+}
+
+func rewriteModule(name string, data []byte, sourceModule, destinationModule string) ([]byte, error) {
 	if name == "go.mod" {
-		return bytes.Replace(data, []byte("module "+module+"\n"), []byte("module "+rootModule+"\n"), 1), nil
+		return bytes.Replace(data, []byte("module "+sourceModule+"\n"), []byte("module "+destinationModule+"\n"), 1), nil
 	}
 	if !strings.HasSuffix(name, ".go") {
 		return data, nil
@@ -276,11 +280,11 @@ func bootstrapFile(name string, data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if path != module && !strings.HasPrefix(path, module+"/") {
+		if path != sourceModule && !strings.HasPrefix(path, sourceModule+"/") {
 			continue
 		}
 		start, end := fset.Position(item.Path.Pos()).Offset, fset.Position(item.Path.End()).Offset
-		replacement := strconv.Quote(rootModule + strings.TrimPrefix(path, module))
+		replacement := strconv.Quote(destinationModule + strings.TrimPrefix(path, sourceModule))
 		data = append(append(append([]byte{}, data[:start]...), replacement...), data[end:]...)
 	}
 	return data, nil

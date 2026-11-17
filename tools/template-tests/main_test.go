@@ -341,6 +341,22 @@ func TestBootstrapIdentityMapping(t *testing.T) {
 	}
 }
 
+func TestGeneratedFilesPreserveNonImportModuleText(t *testing.T) {
+	root := t.TempDir()
+	name := "example.com/orders"
+	source := "package example\n\n// " + module + " stays in a comment.\nimport _ \"" + module + "/internal/text\"\n\nvar note = \"" + module + "\"\n"
+	generated := "package example\n\n// " + module + " stays in a comment.\nimport _ \"" + name + "/internal/text\"\n\nvar note = \"" + module + "\"\n"
+	writeFiles(t, root, map[string]string{
+		"template/go.mod":     "module " + module + "\n",
+		"template/example.go": source,
+		"a/go.mod":            "module " + name + "\n",
+		"a/example.go":        generated,
+		"b/go.mod":            "module " + name + "\n",
+		"b/example.go":        generated,
+	})
+	assertGeneratedFiles(t, root, name, filepath.Join(root, "a"), filepath.Join(root, "b"))
+}
+
 func assertGeneratedFiles(t *testing.T, root, name, a, b string) {
 	t.Helper()
 	aFiles := readFiles(t, a)
@@ -354,7 +370,10 @@ func assertGeneratedFiles(t *testing.T, root, name, a, b string) {
 	}
 	for path, want := range inputs {
 		if strings.HasSuffix(path, ".go") || path == "go.mod" {
-			want = bytes.ReplaceAll(want, []byte(module), []byte(name))
+			want, err = rewriteModule(path, want, module, name)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 		if !bytes.Equal(aFiles[path], want) || !bytes.Equal(aFiles[path], bFiles[path]) {
 			t.Fatalf("generated file differs: %s", path)
