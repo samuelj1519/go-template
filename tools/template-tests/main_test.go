@@ -239,6 +239,12 @@ func command(t *testing.T, dir string, env []string, name string, args ...string
 	return data, err
 }
 
+func goCommand(t *testing.T, dir, base, cache string, args ...string) ([]byte, error) {
+	t.Helper()
+	env := append(os.Environ(), "GOWORK=off", "GOCACHE="+filepath.Join(base, cache))
+	return command(t, dir, env, "go", args...)
+}
+
 func generate(t *testing.T, base, proxy, name, destination string) error {
 	t.Helper()
 	tool := os.Getenv("GONEW_BIN")
@@ -301,8 +307,7 @@ func TestModuleNames(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			env := append(os.Environ(), "GOWORK=off", "GOCACHE="+filepath.Join(base, "build"))
-			if _, err := command(t, project, env, "go", "test", "./..."); err != nil {
+			if _, err := goCommand(t, project, base, "build", "test", "./..."); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -311,8 +316,7 @@ func TestModuleNames(t *testing.T) {
 
 func assertImports(t *testing.T, base, name, project string) {
 	t.Helper()
-	env := append(os.Environ(), "GOWORK=off", "GOCACHE="+filepath.Join(base, "build"))
-	data, err := command(t, project, env, "go", "list", "-f", "{{.Name}} {{.ImportPath}} {{join .Imports \" \"}}", "./cmd/app", "./internal/text")
+	data, err := goCommand(t, project, base, "build", "list", "-f", "{{.Name}} {{.ImportPath}} {{join .Imports \" \"}}", "./cmd/app", "./internal/text")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -403,11 +407,10 @@ func assertPrivateFilesAbsent(t *testing.T, project string) {
 
 func checkGeneratedProjects(t *testing.T, base, a, b string) {
 	t.Helper()
-	env := append(os.Environ(), "GOWORK=off", "GOCACHE="+filepath.Join(base, "build-a"))
-	if _, err := command(t, a, env, "go", "run", "./tools/check", "full"); err != nil {
+	if _, err := goCommand(t, a, base, "build-a", "run", "./tools/check", "full"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := command(t, b, append(os.Environ(), "GOWORK=off", "GOCACHE="+filepath.Join(base, "build-b")), "go", "test", "./..."); err != nil {
+	if _, err := goCommand(t, b, base, "build-b", "test", "./..."); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -432,8 +435,7 @@ func assertDestinationSafety(t *testing.T, base, proxyPath, name, project string
 
 func assertSourceIdentity(t *testing.T, base, name, project string) {
 	t.Helper()
-	env := append(os.Environ(), "GOWORK=off", "GOCACHE="+filepath.Join(base, "build-a"))
-	metadata, err := command(t, project, env, "go", "list", "-m", "-json")
+	metadata, err := goCommand(t, project, base, "build-a", "list", "-m", "-json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,11 +482,10 @@ func TestBehaviorMutations(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(source, "internal/text/normalize.go"), changed, 0o644); err != nil {
 				t.Fatal(err)
 			}
-			env := append(os.Environ(), "GOWORK=off", "GOCACHE="+filepath.Join(base, "build"))
-			if _, err := command(t, source, env, "go", "test", "-run=^$", "./internal/..."); err != nil {
+			if _, err := goCommand(t, source, base, "build", "test", "-run=^$", "./internal/..."); err != nil {
 				t.Fatalf("mutation does not compile: %v", err)
 			}
-			out, err := command(t, source, env, "go", "test", "-count=1", "./internal/...")
+			out, err := goCommand(t, source, base, "build", "test", "-count=1", "./internal/...")
 			if err == nil || !bytes.Contains(out, []byte("--- FAIL: TestNormalize")) {
 				t.Fatalf("mutation survived or failed outside assertions: %s (%v)", out, err)
 			}
