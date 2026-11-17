@@ -114,13 +114,16 @@ func formatting() error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	for decoder.More() {
 		var pkg struct {
-			Dir                                string
-			GoFiles, TestGoFiles, XTestGoFiles []string
+			Dir                                                          string
+			GoFiles, CgoFiles, IgnoredGoFiles, TestGoFiles, XTestGoFiles []string
 		}
 		if err := decoder.Decode(&pkg); err != nil {
 			return err
 		}
-		files := append(append(pkg.GoFiles, pkg.TestGoFiles...), pkg.XTestGoFiles...)
+		files := append(pkg.GoFiles, pkg.CgoFiles...)
+		files = append(files, pkg.IgnoredGoFiles...)
+		files = append(files, pkg.TestGoFiles...)
+		files = append(files, pkg.XTestGoFiles...)
 		for _, name := range files {
 			path := filepath.Join(pkg.Dir, name)
 			source, err := os.ReadFile(path)
@@ -181,13 +184,13 @@ func applicationCoverage() error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	for decoder.More() {
 		var pkg struct {
-			ImportPath string
-			GoFiles    []string
+			ImportPath        string
+			GoFiles, CgoFiles []string
 		}
 		if err := decoder.Decode(&pkg); err != nil {
 			return err
 		}
-		for _, name := range pkg.GoFiles {
+		for _, name := range append(pkg.GoFiles, pkg.CgoFiles...) {
 			expected = append(expected, pkg.ImportPath+"/"+name)
 		}
 	}

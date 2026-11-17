@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -52,6 +53,53 @@ func TestCheckArguments(t *testing.T) {
 		if err := check(args); err == nil {
 			t.Fatalf("accepted invalid arguments: %v", args)
 		}
+	}
+}
+
+func TestFormattingIncludesBuildVariants(t *testing.T) {
+	for _, tc := range []struct{ name, source string }{
+		{"cgo", "package example\n\nimport \"C\"\n\nfunc   Cgo() {}\n"},
+		{"ignored", "//go:build freebsd\n\npackage example\n\nfunc   Ignored() {}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			t.Chdir(root)
+			t.Setenv("GOWORK", "off")
+			writeCheckFile(t, root, "go.mod", "module example.com/format\n\ngo 1.27.4\n")
+			writeCheckFile(t, root, "active.go", "package example\n")
+			writeCheckFile(t, root, tc.name+".go", tc.source)
+			err := formatting()
+			if err == nil || !strings.Contains(err.Error(), "needs gofmt") {
+				t.Fatalf("formatting() error = %v, want gofmt diagnostic", err)
+			}
+		})
+	}
+}
+
+func TestApplicationCoverageIncludesCgo(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	t.Setenv("GOWORK", "off")
+	t.Setenv("CGO_ENABLED", "1")
+	writeCheckFile(t, root, "go.mod", "module example.com/cgo\n\ngo 1.27.4\n")
+	writeCheckFile(t, root, "internal/example/cgo.go", "package example\n\nimport \"C\"\n\nfunc Answer() int { return 42 }\n")
+	writeCheckFile(t, root, "internal/example/cgo_test.go", "package example\n\nimport \"testing\"\n\nfunc TestAnswer(t *testing.T) {\n\tif Answer() != 42 {\n\t\tt.Fatal(\"wrong answer\")\n\t}\n}\n")
+	if err := os.MkdirAll("artifacts", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := applicationCoverage(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeCheckFile(t *testing.T, root, name, data string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
